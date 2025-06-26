@@ -23,28 +23,20 @@ An advanced, modular, and extensible command-line calculator built in Python, de
 ##  Project Structure
 advanced-calculator/
 ├── app/
-│ ├── calculation/
-│ │ └── calculation.py
-│ ├── calculator/
-│ │ └── init.py
-│ ├── memento/
-│ │ ├── memento.py
-│ │ └── caretaker.py
-│ ├── observer/
-│ │ ├── observer.py
-│ │ ├── subject.py
-│ │ └── history_observer.py
-│ ├── operation/
-│ │ ├── init.py
-│ │ └── operation.py
-│ ├── config.py
-│ └── calculator_repl.py
-├── tests/
-│ └── test_*.py
-├── .env
-├── history.csv
-├── main.py
-└── README.md
+│   ├── calculator/              # Entry point module
+│   ├── calculation/             # Calculation logic
+│   ├── operation/               # Strategy + Factory for math ops
+│   ├── observer/                # Observer pattern (CSV logger)
+│   ├── memento/                 # Undo/redo infrastructure
+│   ├── calculator_repl.py       # REPL loop and input parsing
+│   ├── config.py                # Loads env vars
+│   └── __init__.py
+├── tests/                       # All test modules
+├── .env                         # App settings
+├── history.csv                  # Auto-generated log
+├── main.py                      # Application entry point
+├── requirements.txt             # Dependencies
+└── README.md                    # You're reading it
 
 
 ---
@@ -86,3 +78,19 @@ git commit -m "Final project complete with README"
 git remote add origin https://github.com/Rojas003/advanced-calculator.git
 
 git push -u origin main
+
+Usage Notes
+Type calculations like:
+5 + 3, 10 / 2, 2 ** 3, 100 % 3, 9 root 2
+
+Meta-commands:
+
+exit – quit
+
+history – print history
+
+undo – undo last operation
+
+redo – redo last undone operation
+
+save – manually save current session

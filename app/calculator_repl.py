@@ -1,80 +1,134 @@
-from app.observer.subject import Subject
-from app.observer.history_observer import HistoryObserver
+# app/calculator_repl.py
+"""
+Interactive REPL for the Advanced Calculator.
+
+Features
+--------
+* Factory pattern to obtain the correct operation function.
+* Memento pattern (Caretaker + Memento) for undo / redo.
+* Observer pattern to log each calculation automatically.
+* Robust input validation & error handling.
+"""
+
+from __future__ import annotations
+
+from typing import Optional
+from app import config
+from app.operation.factory import get_operation          # Factory
 from app.calculation.calculation import Calculation
-from app.operation.operation import AddStrategy, SubtractStrategy, MultiplyStrategy, DivideStrategy
-from app.memento.caretaker import Caretaker
+from app.memento.caretaker import Caretaker              # Memento caretaker
 from app.memento.memento import Memento
+from app.observer.subject import Subject                 # Observer subject
+from app.observer.history_observer import HistoryObserver
+
+# --------------------------------------------------------------------------- #
+# Helper tables for user prompts
+# --------------------------------------------------------------------------- #
+
+_PROMPT = (
+    "Enter a calculation (e.g. 2 + 2) or one of the commands:\n"
+    "  history   – show history (in-memory list)\n"
+    "  undo      – undo last calculation\n"
+    "  redo      – redo an undone calculation\n"
+    "  save      – write history to CSV (manual save)\n"
+    "  exit      – quit\n"
+    "> "
+)
+
+# --------------------------------------------------------------------------- #
+# Main REPL
+# --------------------------------------------------------------------------- #
 
 
-def start_repl():
-    # Step 1: Setup Observer Pattern
-    subject = Subject()
-    history_observer = HistoryObserver()
-    subject.attach(history_observer)
-
-    # Step 2: Setup Memento (Undo/Redo)
+def start_repl() -> None:
+    """Run the calculator Read-Eval-Print Loop."""
+    # Memento infrastructure
     caretaker = Caretaker()
 
-    print("History File: history.csv")
-    print("Welcome to the Advanced Calculator! Type 'exit' to quit, or 'undo' to revert the last step, or 'redo' to reapply.")
+    # Observer infrastructure
+    subject = Subject()
+    history_observer = HistoryObserver(config.HISTORY_FILE)
+    subject.attach(history_observer)
 
+    print("Welcome to the Advanced Calculator! Type 'exit' to quit, "
+          "or 'undo' / 'redo' / 'history' / 'save'.")
+
+    # --- REPL loop --------------------------------------------------------- #
     while True:
-        user_input = input("Enter a calculation (e.g. 2 + 2): ")
+        user_input = input(_PROMPT).strip()
 
-        if user_input.lower() in ["exit", "q"]:
+        # ------------------ meta-commands ---------------------------------- #
+        if user_input.lower() == "exit":
             print("Goodbye!")
             break
 
+        if user_input.lower() == "history":
+            for idx, mem in enumerate(caretaker.history, 1):
+                print(f"{idx:>3}: {mem.get_expression()} = {mem.get_result()}")
+            continue
+
         if user_input.lower() == "undo":
-            memento = caretaker.undo()
-            if memento:
-                print(f"Undo → {memento.expression} = {memento.result}")
+            mem = caretaker.undo()
+            if mem:
+                print(f"⤺  Undid: {mem.get_expression()} = {mem.get_result()}")
             else:
                 print("Nothing to undo.")
             continue
 
         if user_input.lower() == "redo":
-            memento = caretaker.redo()
-            if memento:
-                print(f"Redo → {memento.expression} = {memento.result}")
+            mem = caretaker.redo()
+            if mem:
+                print(f"⤻  Redid: {mem.get_expression()} = {mem.get_result()}")
             else:
                 print("Nothing to redo.")
             continue
 
+        if user_input.lower() == "save":
+            caretaker.save_history()          # caretaker handles CSV write
+            print("History saved manually.")
+            continue
+
+        # ------------------ parse a calculation --------------------------- #
         parts = user_input.split()
         if len(parts) != 3:
-            print("Invalid input format. Please use format like '2 + 2'.")
+            print("Invalid format; please enter:  <number> <operator> <number>")
             continue
 
         try:
-            value1 = float(parts[0])
-            operator = parts[1]
-            value2 = float(parts[2])
+            a = float(parts[0])
+            op_symbol = parts[1]
+            b = float(parts[2])
 
-            if operator == "+":
-                strategy = AddStrategy()
-            elif operator == "-":
-                strategy = SubtractStrategy()
-            elif operator == "*":
-                strategy = MultiplyStrategy()
-            elif operator == "/":
-                strategy = DivideStrategy()
-            else:
-                print("Unsupported operator. Use +, -, *, or /.")
-                continue
+            # Factory → operation function
+            operation_func = get_operation(op_symbol)
 
-            calc = Calculation(value1, value2, strategy)
+            # Perform calculation
+            calc = Calculation(a, b, operation_func)
             result = calc.execute()
 
-            # Save current operation as a Memento
-            expression = f"{value1} {operator} {value2}"
-            memento = Memento(expression, result)
-            caretaker.add_memento(memento)
+            # Persist using Memento pattern
+            expr = f"{a} {op_symbol} {b}"
+            caretaker.add_memento(Memento(expr, result))
 
-            # Notify observers
-            subject.notify(expression, result)
+            # Notify observers (logs to CSV automatically)
+            subject.notify(expr, result)
 
             print(f"Result: {result}")
 
-        except Exception as e:
-            print(f"Error: {e}")
+        except ValueError as ve:
+            # Typical numeric / zero-division errors
+            print(f"Value error: {ve}")
+
+        except KeyError:
+            print(f"Unknown operation: '{op_symbol}'")
+
+        except Exception as ex:               # catch-all for unexpected issues
+            print(f"Unexpected error: {ex}")
+
+
+# --------------------------------------------------------------------------- #
+# Script entry point
+# --------------------------------------------------------------------------- #
+
+if __name__ == "__main__":
+    start_repl()
